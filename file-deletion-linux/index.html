@@ -21,7 +21,7 @@
 <h2>Hardlinks</h2>
 <p>Linux filesystems have use the notion of <em>hard links</em>. When there are multiple hard links of a file, it means that there are multiple <em>file names</em> all pointing to the same data (an <em>inode</em>). This contrasts with a <em>symbolic link</em>, which is a file name pointing to another file name (which could be a real file, or another <em>symlink</em>).</p>
 
-<p>All files are actually hard links, although most of the time they are the only pointer to their data. We say that the <em>hard link count</em> is <code>1</code>.</p>
+<p>All files are actually hard links, although most of the time they are the only pointer to their data. We say in that case that the <em>hard link count</em> is <code>1</code>.</p>
 
 <pre>
 <samp>$ </samp><kbd>echo "Hello, World!" &gt; file.txt</kbd>
@@ -41,7 +41,7 @@
 
 <p>You'll notice that there is no information that tells you what are the other hardlinks of a given file, appart from the fact that they have the same inode number, so if you see a file with a link count greater than <code>1</code>, you'll need to scan the whole filesystem to find its hardlinks.</p>
 
-<p>If we creating a symlink, on the other hand, does not change the link count. The symlink is recognizable because its <em>mode</em> starts with <code>l</code> (lower-case L), and because <code>ls</code> shows the link's target.</p>
+<p>Creating a symlink, on the other hand, does not change the link count. The symlink is recognizable because its <em>mode</em> starts with <code>l</code> (lower-case L), and because <code>ls</code> shows the link's target.</p>
 <pre>
 <samp>$ </samp><kbd>ln -s file.txt symlink.txt</kbd>
 <samp>$ </samp><kbd>ls -li</kbd>
