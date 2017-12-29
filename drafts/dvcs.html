@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <title>Lambda calculus</title>
+    <!--[if lte IE 6]>
+      <script language="Javascript1.2">
+      document.createElement("abbr");
+      </script>
+    <![endif]-->
+  </head>
+  <body>
+    <h1>A take on Distributed Version Control</h1>
+    <p>
+      Simplify the number of core concepts as much as possible:
+    </p>
+    <ul>
+      <li>object: referred to by its cryptographic hash
+        <ul>
+          <li>file patch: a diff from N input files (for merges) to 1 output</li>
+          <li>directory patch: combines file patches, knows about renamed
+          files within that directory</li>
+          <li>commit message: a piece of text</li>
+          <li>commit: patch + message</li>
+          <li>commit group: list of commits (or commit groups) that are
+          grouped in a single one, reordering, …</li>
+          <li>meta-commit: list of pointers with their values, …</li>
+        </ul>
+      </li>
+      <li>pointer: referred to by its name. points to another pointer, or to
+        an object.</li>
+      <li>nested lists where the leaves are pointers (could also be seen as a
+      flat namespace with special prefix in names</li>
+    </ul>
+
+    <p>
+      The traditionnal branches, tags, remote branches, master "trunk" branch,
+      HEAD are implemented as pointers. HEAD points to a branch, tag or
+      directly to a commit object. A branch points to a commit object, etc.
+    </p>
+
+    <p>
+      The working directory is a special continuously-updated commit. When
+      switching branches, you can either change the working directory, which
+      leaves the changes as an automatic "working directory" commit on top of
+      the previous branch (or on top of the previous detached HEAD). On the
+      other hand, switching with the <code>--no-workdir</code> option
+      effectively "rebases" the "working directory" commit on top of the new
+      branch.
+    </p>
+
+    <p>
+      A groupped-commit indicates how the history should be displayed. For
+      example, given a set of four commits, c1 c2 c3 c4, the history can be
+      displayed as c1+3 then c2+4, provided that the commits can be
+      re-ordered (like with darcs). If necessary, c1+3 and c2+4 can act as
+      merges, but always keep a reference to the old commits that they
+      represent. Also, after applying c1+3 and c2+4, the result should be
+      identical to the original state after applying c1 c2 c3 c4 (so that
+      other merges can think in terms of the plain commits, and don't have to
+      worry about the groupped commits).
+    </p>
+
+    <p>
+      The stream of meta-commit acts as a stream of events like the one showed
+      by <code>git pull</code>: a list of updated pointers. This means that
+      branches can safely be deleted on the "public" version of the
+      repository, as browsing through the history should show something like:
+    </p>
+    <pre>
+current-state: master→abcde dev→adebc …
+branch tmp was deleted (unmerged)
+branch tmp was updated → cccdb
+branch tmp was created → cccda
+branch bugfix was deleted (merged into dev and xyz)
+branch xyz was updated → merge bugfix
+branch dev was updated → merge bugfix
+branch bugfix was updated → aaabb
+branch bugfix was created → aaacc
+    </pre>
+    <p>
+      Only the meta-commit stream for public branches is pushed, so "fake"
+      branches created by stash or 
+    </p>
+
+    <p>
+      The core set of commands operates on the core concepts:
+    </p>
+    <pre>
+core file-patch create …
+core file-patch show _hash_
+core directory-patch create …
+core commit-message create …
+core commit create …
+core set-pointer name new-hash …    # Checks that the new-hash is a commit hash, not something else
+    </pre>
+
+    <p>
+      The user-friendly commands should have a very regular syntax. All
+      commands that change the HEAD should have the option <code>--no-workdir</code>. Commands
+      that create commits should have the option <code>--workdir</code>,
+      <code>--untracked</code>, <code>--stash</code>,
+      and take an optional list of files. These options include the unstaged
+      changes in the workdir, include the untracked files (useful for
+      stash), and create a stash/1, stash/2 etc pointer to the commit.
+      <code>dvcs stash</code> is just an alias for <code>dvcs commit --stash</code>,
+      and <code>--stash</code> is actually just an alias for
+      <code>--create-pointer stash/<var>auto-incremented-number</var></code>. When
+      no file is given (and when the option <code>--</code> is not passed, so
+      that scripts do not have to worry about the 0 files special-case), the
+      staged changes are committed (unless <code>--untracked</code> or
+      <code>--workdir</code> etc. are specified, in which case these changes
+      are added too). If a file is specified, then the changeset is restrained
+      to contain only that file. By default, it will commit the staged changes,
+      but in combination with <code>--workdir</code> all changes within that
+      file can be included.
+
+      When showing the workdir at the top of a "log" command, we should
+      actually show four commits: abcde-staged, abcde-workdir,
+      abcde-untracked, abcde-ignored, where abcde
+      is the permanent commit. That way, the relation is clear.
+    </p>
+
+    <p>
+      Customizable: all commands should be extensively customizable. Rules to
+      ignore whitespace, custom diff tool, …
+    </p>
+
+    <p>
+      language-specific patch format: a patch contains a reference to a diff
+      tool, coded in a safe language and run in complete isolation. That way,
+      future repositories aren't limited by the tool's initial
+      shortcommings. This makes it possible to use specific binary diff tools
+      (e.g. for pictures). The code for a patch format should be simple enough
+      that it can easily be included inside the remote repo (we're talking
+      about applying patches here, not about computing the diff or displaying
+      it).
+    </p>
+
+    <p>
+      Clearly separate the storage backend (patches + bytecode for each kind
+      of patch), the core concepts (the actual history + meta-history), and
+      the sugar on top (show the meta-history, not the history, unless the
+      user asks for it). Last but not least: the remote protocol.
+    </p>
+    <p>
+      The backend is concerned with efficiently storing the repository's
+      information (compact size, easy to extract the appropriate pieces to
+      that it is feasible to clone a commit range for a subdirectory)
+    </p>
+    <p>
+      That clear separation should help enable multiple models, for example
+      it should be possible to have multiple branches checked out
+      simultaneously, with their storage pointing to a centralized storage
+      directory.
+    </p>
+
+    <p>
+      Things to think about:
+      <ul>
+        <li>hierarchy: it should be possible to clone a subdirectory / commit
+          range / both and work on it (commit, pull, push, amend the
+          meta-history, …) without needing the rest of the repository.
+
+          The patches should therefore be hierarchical in some way, so that
+          the patch for a whole directory does not need to reference patches
+          for files outside the directory. From the commit, you then only need
+          to traverse the patches down until the relevant directory.
+
+          What about "dumb" servers (i.e. just the repo hosted on an HTTP
+          server)?  Probably we can expect degraded functionnality there (I
+          doubt it's possible to easily pick one single file of one single
+          commit without fetching anything else, unless there are thousands of
+          files/urls, in which case fetching the whole repo would be horribly
+          slow).
+        </li>
+    </p>
+
+    <p>
+      Also: log for a specific line / sexp (seems git does this for lines with git log -L)
+    </p>
+  </body>
+</html>
