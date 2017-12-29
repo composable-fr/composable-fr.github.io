@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" />
+<title>Fully mechanical (newtonian?) computer</title>
+</head>
+<body>
+<h1>Fully mechanical (newtonian?) computer</h1>
+
+<p>There have been several attempts at building mechanical computers. The most famous one is Charles Babbage's (still unbuilt) analytical machine, although there is <a href="http://plan28.org/">an ongoing project</a> to do so. More recently Chris Fenton built the <a href="http://www.chrisfenton.com/the-turbo-entabulator/">Turbo Entabulator</a>, a 3D-printed mechanical computer powered by a hand crank which can compute the fibonacci sequence. That machine is built only from plastic cogs, strings, springs and a few nuts and bolts.</p>
+
+<p>When I saw that marvel, racing through computations at a staggering speed of one operation per second, I couldn't help but ask myself: Can we push the minimalism further?</p>
+
+<p>Let's look at the mechanical elements 
+
+<p>How to build a mechanical computer without any springs, without using gravity, and without using friction. The allowed mechanisms are only direct force transmission.</p>
+
+<p>Expose problem: reading data from a punch card or some similar read-only storage mechanism.</p>
+
+<p>Solution 1: use a dynamic approach (i.e. use some RAM): store data on the card the same way we do in registers. Nice solution, but that is not really robust: if we "brutally" remove the "register" card and pluck it in another computer, it might not be in a good state.</p>
+
+<p>Solution 2: We can take an example from lambda calculus: in lambda calculus, the only data type is a (single-paramter) lambda function. There are no booleans, let alone integers! How do we represent a boolean value (i.e. true or false) ?</p>
+
+<p>Link to lambda-calculus article.</p>
+
+<p>Since the only availabe structure are lambdas, which can be thought of as contraptions that take values and spit out a result, we will provide two lambdas, runfirst and runsecond. The first takes two parameters and execute the first, the second takes two parameters and executes the second.</p>
+
+<p>We can apply the same idea to our mechanical computer: don't use punchcards, use gears fixed on the card at different positions.</p>
+
+<p>When querrying the value of a gear, we push one gear to its left, and two gears to its right (that don't touch each other).</p>
+
+<p>When making the gear on the left turn, the "true", or "punched" gear will make the first one on the right turn, by being placed so as not to touch the second one, while the "false", or "filled" one will make the second one on the right turn, by being placed so as not to touch the first one.</p>
+
+<p>Solution 3: true is represented as '10' and false as '01' on the card (with punch holes), and we make two rods go down, knowing that one will get blocked and the other will continue, and we can always apply the same force regardless of wheteher the hole is a 0 or a 1. See also protocols that use this "there must be as many 0's as 1's" approach to reduce to 0 the average current going from emitter to reciver.</p>
+</body>
+</html>

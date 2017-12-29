@@ -1,0 +1,52 @@
+Here are some research problems I bumped into recently:
+
+<ul>
+<li>Typed macros: Just looking at the macro's signature should tell
+  you what the input and output type of the code it generates are
+  (including the type of identifiers it binds when
+  producing <code>define</code>), without the need to actually run the
+  macro.
+
+  This information could be expresed as types (checked when compiling the
+  macro itself, not when compiling the expanded code), as some kind of
+  contracts, or as some kind of formal documentation.
+  
+  If expressed as types, this information should be verifiable for all
+  possible uses of the macro, i.e. there isn't a use case which would give the
+  wrong type for the resulting code, which would otherwise generate an error
+  at expansion-time.</li>
+<li>A dependently typed variant of Racket/LISP. Some people from
+  Typed/Racket are working on this, but there's nothing that we can
+  use so far. A solution might be to use Racket's syntax, and offload
+  the typechecking to a separate tool from another language.
+
+  William J. Bowman's <a href="https://github.com/wilbowma/cur">Cur</a>
+  language seems to be going in that direction.</li>
+<li>Hyper-literate programming: use the ideas of literate programming in a
+more interactive setting. The programmer explains his source code via a
+literate program, which can be read and explored in a non-linear and
+interactive way. I started a fork of <a href="">scribble/lp2</a> with these
+goals in mind, as expressed in
+the <a href="https://github.com/jsmaniac/hyper-literate">statement of
+    intent</a>
+  <!-- TODO: copy it here -->
+  </li>
+</ul>
+
+
+See Nim's templates:
+https://en.wikipedia.org/wiki/Nim_%28programming_language%29#Metaprogramming
+
+<pre>
+template genType(name, fieldname: expr, fieldtype: typedesc) =
+type
+name = object
+fieldname: fieldtype
+
+genType(Test, foo, int)
+
+var x = Test(foo: 4566)
+echo(x.foo) # 4566
+</pre>
+
+See also metaprogramming with Agda

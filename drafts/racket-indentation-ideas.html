@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <title>Lambda calculus</title>
+    <!--[if lte IE 6]>
+      <script language="Javascript1.2">
+      document.createElement("abbr");
+      </script>
+    <![endif]-->
+  </head>
+  <body>
+    <h1>How would a library express indentation rules in Racket?</h1>
+    <p>In <time datetime="2016-08-25T18:32:29-04:00">August 2016</time>, Alex Knauth <a href="https://groups.google.com/d/msg/racket-users/4SnwpX6gYqk/9ZS3b8jpBAAJ">wrote</a>:</p>
+    <blockquote>
+      How would a library express indentation rules? Would indentation rules meant for s-expression languages be useful in at-exp or sweet-exp notations?
+    </blockquote>
+
+    <p>Below are some ideas, but I'm definitely sure something better can be achieved.</p>
+    <p><strong><abbr title="Too Long; Didn't Read">TL;DR</abbr></strong>: we could specify the indentation of each s-expression with respect to another preceding s-expression (but not necessarily the one just before), and indicating if it should be indented by 0, 2 or 4 spaces.</p>
+
+    <hr />
+
+    <h2>Existing indentation styles, for a line with respect to tokens on the preceeding line</h2>
+    <p>From what I've seen, lisps and schemes have a few indentation styles for a given line:</p>
+
+    <ul>
+      <li>Indent a bit, with respect to the beginning of the enclosing s-expression:
+        <pre>
+(define ;; indent = 0
+  a     ;; indent += small
+  1)</pre>
+      </li>
+      <li>Indent a a lot (twice as much?), with respect to the beginning of the enclosing s-expression.
+        <pre>
+(λ         ;; indent = 0
+    (args) ;; indent += big
+  body)    ;; indent += small, with respect to line 1</pre>
+      </li>
+      <li>
+        Indent the as much as the first argument of the enclosing form.
+        <pre>
+(displayln datum
+           output-port)</pre>
+      </li>
+      <li>Indent as much as the first s-expression on the previous line (this is basically just <code>begin</code> specifying a +small indentation for all of sub-expressions):
+        <pre>
+(begin
+  (define x 1) (define y 2) ;; indent = 2
+  (displayln (+ x y)))      ;; indent += 0</pre>
+      </li>
+    </ul>
+
+    <p>Have you seen another kind of indentation? Reader extensions like #' and dotted pairs may need some extra thought.</p>
+
+    <h2>Generalization: indent tokens relatively to other tokens</h2>
+    <p>I think the cases above can be generalized to:</p>
+    <blockquote>
+      Indent this s-expression so that it aligns with that other preceding s-expression:
+      <ul>
+        <li>exactly</li>
+        <li>plus a small indent of 2 spaces</li>
+        <li>plus a large indent of 4 spaces</li>
+        <li>plus an arbitrary indent (to reserve space for an out-dented token that appears afterwards)</li>
+      </ul>
+    </blockquote>
+    <p>It allows some less common indentation styles:</p>
+
+    <p>The code</p>
+    <pre>
+(some-macro #:kw #:kw-one-arg arg1 #:kw-trhee-args argA argB argC)</pre>
+    <p>may specify the following indentation styles:</p>
+    <pre>
+#:kw => +small, w.r.t some-macro
+#:kw-one-arg => exactly, w.r.t #:kw
+arg1 => +small, w.r.t #:kw-one-arg
+#:kw-three-args => exactly, w.r.t #:kw (or w.r.t #:kw-one-arg)
+argA => +small, w.r.t #:kw-three-args
+argB => exactly, w.r.t argA
+argC => exactly, w.r.t argA</pre>
+    <p>which gives the following indentations, depending on where the newlines are:</p>
+    <pre>
+(some-macro #:kw #:kw-one-arg arg1 #:kw-three-args argA argB argC)
+(some-macro #:kw
+            #:kw-one-arg arg1
+            #:kw-three-args argA argB argC)
+(some-macro #:kw
+            #:kw-one-arg
+              arg1
+            #:kw-three-args
+              argA argB
+              argC)
+(some-macro
+  #:kw
+  #:kw-one-arg
+    arg1
+  #:kw-three-args argA argB
+                  argC)</pre>
+    
+    <p>Given a caml-style let-in macro, the code</p>
+    <pre>
+(let (x . y) z = (values (cons 1 2) 3) t = 4 in body)</pre>
+    <p>may specify the following indentation styles:</p>
+    <pre>
+(x . y) => +big, w.r.t let
+z => exactly, w.r.t (x . y)
+= => exactly w.r.t (x . y)
+t =>  exactly w.r.t (x . y)
+=  => exactly w.r.t (x . y)
+4 =>  exactly w.r.t (x . y)
+in => exactly w.r.t let
+body => +small w.r.t let</pre>
+    <p>which gives the following indentations, depending on where the newlines are:</p>
+    <pre>
+(let (x . y) z = (values (cons 1 2) 3) t = 4 in body)
+(let
+    (x . y) z = (values (cons 1 2) 3)
+    t = 4
+ in
+   body)
+(let
+    (x . y) z = (values (cons 1 2) 3)
+    t = 4 in
+   body)
+(let (x . y) z = (values (cons 1 2) 3)
+     t = 4
+ in body)
+(let (x . y) z = (values (cons 1 2) 3) t = 4 in
+  body)</pre>
+
+    <p>I'm not used to sweet-exp, so I cannot say much about it, but the rules above seem to translate naturally to at-exp in most cases, but not all:</p>
+    <pre>
+@some-macro[#:kw #:kw-one-arg arg1 #:kw-three-args argA argB argC]
+@some-macro[#:kw
+            #:kw-one-arg arg1
+            #:kw-three-args argA argB argC]
+@some-macro[#:kw
+            #:kw-one-arg
+              arg1
+            #:kw-three-args
+              argA argB
+              argC]
+@some-macro[
+  #:kw
+  #:kw-one-arg
+    arg1
+  #:kw-three-args argA argB
+                  argC]</pre>
+    <p>bonus: if the [ appears first on its line, it uses the indentation of the following token, and shifts everyting until ] by 1 space:</p>
+    <pre>
+@some-macro
+  [#:kw
+   #:kw-one-arg
+     arg1
+   #:kw-three-args argA argB]</pre>
+    <p>things are do not look so good when using {} for the last argument:</p>
+    <pre>
+@some-macro
+  [#:kw
+   #:kw-one-arg
+     arg1
+   #:kw-three-args argA argB]{
+                   argC}
+
+@let[(x . y) z = (values (cons 1 2) 3) t = 4 in body]
+@let[
+    (x . y) z = (values (cons 1 2) 3)
+    t = 4
+ in
+   body]</pre>
+    <p>This one looks a bit weird too (because the "[" bracket is opened on the second line):</p>
+    <pre>
+@let
+    [(x . y) z = (values (cons 1 2) 3)
+     t = 4 in
+   body]</pre>
+    <p>Where should the closing brace "}" be positioned ?</p>
+    <pre>
+@let[(x . y) z = (values (cons 1 2) 3)
+     t = 4
+ in]{
+   body
+ }
+@let[(x . y) z = (values (cons 1 2) 3) t = 4 in
+  body]</pre>
+
+    <h2>Alignment tabs: a desireable feature?</h2>
+    <p>An interesting feature that would require more thought would be to provide "alignment tabs", so that getting the body of all clauses in a cond statement is easy, if the IDE supports it:</p>
+    <pre>
+(cond
+  [x                   body1]
+  [very-long-condition body2]
+  [much-too-much-too-long-condition-so-the-programmer-put-a-newline
+                       body3]
+  [yzt                 body4])</pre>
+  </body>
+</html>

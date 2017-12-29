@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" />
+<title>File deletion under linux</title>
+</head>
+<body>
+<h1>File deletion under linux</h1>
+
+<p>Posted on <time datetime="2014-05-29 00:00">2014-05-29</time></p>
+
+<p>This post is the first in a series that will let you discover the inner workings of unix (linux, most of the time), by experimentation. You shouldn't take what a book or blog says for gospel, instead you should verify that the system behaves like you think it does.</p>
+
+<h2>Deleting a file — A simple process?</h2>
+
+<p>Today, we will study a tricky part of the linux filesystems: file deletion. When you delete a file (for example with <code>rm -f file.txt</code>), its contents are not necessarily made inaccessible immediately. There are two reasons for that: <em>hard links</em> and <em>open files</em>.</p>
+
+<!--more-->
+
+<h2>Hardlinks</h2>
+<p>Linux filesystems have use the notion of <em>hard links</em>. When there are multiple hard links of a file, it means that there are multiple <em>file names</em> all pointing to the same data (an <em>inode</em>). This contrasts with a <em>symbolic link</em>, which is a file name pointing to another file name (which could be a real file, or another <em>symlink</em>).</p>
+
+<p>All files are actually hard links, although most of the time they are the only pointer to their data. We say that the <em>hard link count</em> is <code>1</code>.</p>
+
+<pre>
+<samp>$ </samp><kbd>echo "Hello, World!" &gt; file.txt</kbd>
+<samp>$ </samp><kbd>ls -li</kbd>
+<samp>total 4
+320779 -rw-r--r-- <em>1</em> user group 14 2014-05-29 20:21 file.txt</samp>
+</pre>
+
+<p>If we now create a hard link of that file, we see that the link count increments to <code>2</code>, for both files, and they both point to the same <em>inode</em></p>
+<pre>
+<samp>$ </samp><kbd>ln file.txt hardlink.txt</kbd>
+<samp>$ </samp><kbd>ls -li</kbd>
+<samp>total 8
+<em>320779</em> -rw-r--r-- <em>2</em> user group 14 2014-05-29 20:21 file.txt
+<em>320779</em> -rw-r--r-- <em>2</em> user group 14 2014-05-29 20:21 hardlink.txt</samp>
+</pre>
+
+<p>You'll notice that there is no information that tells you what are the other hardlinks of a given file, appart from the fact that they have the same inode number, so if you see a file with a link count greater than <code>1</code>, you'll need to scan the whole filesystem to find its hardlinks.</p>
+
+<p>If we creating a symlink, on the other hand, does not change the link count. The symlink is recognizable because its <em>mode</em> starts with <code>l</code> (lower-case L), and because <code>ls</code> shows the link's target.</p>
+<pre>
+<samp>$ </samp><kbd>ln -s file.txt symlink.txt</kbd>
+<samp>$ </samp><kbd>ls -li</kbd>
+<samp>total 8
+320779 -rw-r--r-- 2 user group 14 2014-05-29 20:21 file.txt
+320779 -rw-r--r-- 2 user group 14 2014-05-29 20:21 hardlink.txt
+320780 <em>l</em>rwxrwxrwx <em>1</em> user group 8  2014-05-29 20:32 <em>symlink.txt -> file.txt</em></samp>
+</pre>
+
+<p>You'll notice that the symlink and other files have different <em>inode</em> numbers, but our hard links have the same:</p>
+<pre>
+<samp>$ </samp><kbd>touch test.txt</kbd>
+<samp>$ </samp><kbd>ls -li</kbd>
+<samp>total 8
+<em>320779</em> -rw-r--r-- 2 user group 14 2014-05-29 20:21 file.txt
+<em>320779</em> -rw-r--r-- 2 user group 14 2014-05-29 20:21 hardlink.txt
+<em>320780</em> lrwxrwxrwx 1 user group 8  2014-05-29 20:32 symlink.txt -> file.txt
+<em>320781</em> -rw-r--r-- 2 user group 0  2014-05-29 20:40 test.txt</samp>
+</pre>
+
+<p>If we now delete the original <code>file.txt</code>, we can see that the hard link is still a valid file, that's because the inode still exists. Note its link count was decremented by <code>1</code></p>
+<pre>
+<samp>$ </samp><kbd>rm -f file.txt</kbd>
+<samp>$ </samp><kbd>ls -li</kbd>
+<samp>total 4
+320779 -rw-r--r-- <em>1</em> user group 14 2014-05-29 20:21 hardlink.txt
+320780 lrwxrwxrwx 1 user group 8  2014-05-29 20:32 symlink.txt -> file.txt
+320781 -rw-r--r-- 2 user group 0  2014-05-29 20:40 test.txt</samp>
+<samp>$ </samp><kbd>cat hardlink.txt</kbd>
+<samp>Hello, World!</samp>
+</pre>
+
+<p>On the other hand, the symlink is dangling:</p>
+<pre>
+<samp>$ </samp><kbd>cat symlink.txt</kbd>
+<samp>cat: symlink.txt: No such file or directory</samp>
+</pre>
+
+<p>If we now delete the last remaining hard link to the inode <code>320779</code>, its link count goes down to <code>0</code>, and its contents are permanently deleted:</p>
+<pre>
+<samp>$ </samp><kbd>rm hard.txt</kbd>
+<samp>$ </samp><kbd>sudo find . -inum 320779</kbd>
+<samp>$ </samp><em># No results.</em>
+</pre>
+
+<h3>Impact on disk usage</h3>
+
+<p>You can see this by creating a large file. The disk usage does not increment when creating hardlinks, nor does it decrement when deleting hardlinks as long as one remains:</p>
+<pre>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.0G</em>  2.0G  75% /</samp>
+<samp>$ </samp><kbd>dd if=/dev/zero bs=1M count=1024 &gt; bigfile</kbd>
+<samp>$ </samp><kbd>ls -lh</kbd>
+<samp>total 1,1G
+-rw-r--r-- 1 user group 1,0G 2014-05-29 21:08 bigfile</samp>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>3.0G</em>  1.0G  75% /</samp>
+<samp>$ </samp><kbd>ln bigfile bighardlink</kbd>
+<samp>$ </samp><kbd>ls -lh</kbd>
+<samp>total 2,1G
+-rw-r--r-- 1 user group 1,0G 2014-05-29 21:08 bigfile
+-rw-r--r-- 1 user group 1,0G 2014-05-29 21:08 bighardlink</samp>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>3.0G</em>  1.0G  75% /</samp>
+<samp>$ </samp><kbd>rm bigfile</kbd>
+<samp>$ </samp><kbd>ls -lh</kbd>
+<samp>total 1,1G
+-rw-r--r-- 1 user group 1,0G 2014-05-29 21:08 bighardlink</samp>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>3.0G</em>  1.0G  75% /</samp>
+<samp>$ </samp><kbd>rm bighardlink</kbd>
+<samp>$ </samp><kbd>ls -lh</kbd>
+<samp>total 0</samp>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.0G</em>  2.0G  75% /</samp>
+</pre>
+
+<h2>Open files</h2>
+
+<p>The other reason why the contents of a file may not be discarded immediately is that a program may have opened the file in order to read or write to it.</p>
+
+<p>Let's try to see what happens then. First, we create a process that will write to a file, one line per second, for an hour.</p>
+<pre>
+# First terminal window
+<samp>$ </samp><kbd>for i in $(seq 3600); do echo $i; sleep 1; done &gt; counter.txt</kbd>
+</pre>
+
+<p>Here's what happens: First the <em>shell</em> opens the file <code>counter.txt</code> using the file descriptor <code>1</code> (<code>stdout</code>, the standard output), and then, keeping the file open until the loop ends, it runs the loop. Each time the <code>echo</code> command is executed, it writes a number to the standard output, which is mapped to the already-opened file <code>counter.txt</code>.</p>
+
+<p>If the shell re-opened the file at each iteration, it would overwrite its contents with a single line each time, and that is obviously not the case, as we can see if we open a second terminal and type:</p>
+<pre>
+# Second terminal window
+<samp>$ </samp><kbd>cat counter.txt</kbd>
+<samp>1
+2
+3
+</samp>
+</pre>
+
+<p>Let's leave that command running, and from another terminal open the file for reading.</p>
+<pre>
+# Second terminal window
+<samp>$ </samp><kbd>tail -f counter.txt</kbd>
+<samp>1
+2
+3
+4
+5
+…</samp># tail -f keeps on showing the end of the file as more lines are appended.
+</pre>
+
+<p>Now, what happens if we we delete the file from a third terminal window?</p>
+<pre>
+# Third terminal window
+<samp>$ </samp><kbd>ls -l counter.txt</kbd>
+<samp>total 4
+-rw-r--r-- 1 user group 288 2014-05-30 14:50 counter.txt</samp>
+<samp>$ </samp><kbd>rm counter.txt</kbd>
+<samp>$ </samp><kbd>ls -l counter.txt</kbd>
+<samp>ls: cannot access counter.txt: No such file or directory</samp>
+</pre>
+
+<p>We seem to have successfuly deleted the file (under Microsoft Windows, it would likely tell us that the file is locked by a running process), but the <code>tail -f</code> command continues to happily monitor the file for changes:</p>
+
+<pre>
+# Second terminal terminal window
+<samp>…
+10
+11
+12
+…</samp>
+</pre>
+
+<p>Could we run another command and make it use that deleted file? The answer is yes, through the <code>proc</code> filesystem. The <code>proc</code> filesystem is a virtual filesystem showing informations about the running processes and about the current system state (if you want to learn more, see also the <code>sys</code> filesystem, which shows other info). In that filesystem, we'll be able to see each process' <em>file descriptors</em>.</p>
+
+<pre>
+# Third terminal window
+<samp>$ </samp><kbd>pidof tail</kbd>
+<samp>3457</samp>
+<samp>$ </samp><kbd>ls -l /proc/$(pidof tail)/fd</kbd>
+<samp>total 0
+lrwx------ 1 user group 64 2014-05-30 14:53 0 -> /dev/pts/3
+lrwx------ 1 user group 64 2014-05-30 14:53 1 -> /dev/pts/3
+lrwx------ 1 user group 64 2014-05-30 14:53 2 -> /dev/pts/3
+<em>l</em>r-x------ 1 user group 64 2014-05-30 14:53 <em>3 -> /tmp/w/counter.txt (deleted)</em>
+</samp>
+<samp>$ </samp><kbd>cat /proc/$(pidof tail)/fd/3</kbd>
+<samp>1
+2
+3
+…
+19
+20</samp>
+</pre>
+
+<p>As we saw here, we can read the whole file (not just the new data constantly appended to it). We can even write to it. The shell running the <code>for</code> loop writes to a file descriptor at a given position in the file, and that position is is only advanced when data is written through that file descriptor, so if we write some text at the end of the file, it will be overwritten by the loop when more numbers are written. We therefore have to write something long enough, and see the result quickly.</p>
+
+<pre>
+<samp>$ </samp><kbd>echo <em>"very long string very long string"</em> &gt;&gt; /proc/$(pidof tail)/fd/3<em>; sleep 1;</em> cat /proc/$(pidof tail)/fd/3</kbd>
+<samp>1
+2
+…
+23
+<em>24
+y</em> long string very long string</samp>
+</pre>
+
+<p>The <code>ls</code> command tells us that the file <code>/proc/3457/fd/3</code> is a symbolic link (its mode starts with <code>l</code>), but actually it is more than that, since if we copy that symbolic link around, it looses its "link to a deleted file" super-powers:</p>
+
+<pre>
+<samp>$ </samp><kbd>cp -a /proc/$(pidof tail)/fd/3 .</kbd>
+<samp>$ </samp><kbd>ls -l 3</kbd>
+<samp>total 0
+lrwxrwxrwx 1 user group 28 2014-05-30 15:23 3 -> /tmp/w/counter.txt (deleted)</samp>
+<samp>$ </samp><kbd>cat 3</kbd>
+<samp><em>cat: 3: No such file or directory</em></samp>
+</pre>
+
+<p>If we try to write to it, we can see it is actually a symbolic link to a file named <code>/tmp/w/counter.txt (deleted)</code>:</p>
+<pre>
+<samp>$ </samp><kbd>ls -l "/tmp/w/counter.txt (deleted)"</kbd>
+<samp>ls: cannot access /tmp/w/counter.txt (deleted): No such file or directory</samp>
+<samp>$ </samp><kbd>echo "very long string very long string" &gt;&gt; 3; cat /proc/$(pidof tail)/fd/3</kbd>
+<samp>1
+2
+…
+50
+51</samp> <em># We didn't see the end of the very long string</em>
+<samp>$ </samp><kbd>ls -l "/tmp/w/counter.txt (deleted)"</kbd>
+<samp>$ </samp><kbd>cat "/tmp/w/counter.txt (deleted)"</kbd>
+<samp>very long string very long string</samp>
+<samp>$ </samp><kbd>cat 3</kbd>
+<samp>very long string very long string</samp>
+</pre>
+
+<p>As we saw, the <code>very long string</code> wasn't appended to the deleted file, but instead a file named <code>/tmp/w/counter.txt (deleted)</code> was created and our string was written to it, and the symbolic link <code>3</code> now points to that file.</p>
+
+<p>However, the symbolic link in <code>/proc</code> has retained its magical properties, and is not pointing to the file <code>/tmp/w/counter.txt (deleted)</code> but instead to the deleted <code>/tmp/w/counter.txt</code>:</p>
+
+<pre>
+<samp>$ </samp><kbd>echo <em>"very long string very long string"</em> &gt;&gt; /proc/$(pidof tail)/fd/3<em>; sleep 1;</em> cat /proc/$(pidof tail)/fd/3</kbd>
+<samp>1
+2
+…
+59
+<em>60
+y</em> long string very long string</samp>
+</pre>
+
+<h3>Impact on disk usage</h3>
+
+<p>The disk usage keeps incrementing as long as new data is appended to the deleted file, and the space is freed only once the process ends:</p>
+<pre>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.0G</em>  2.0G  75% /</samp>
+<samp>$ </samp><kbd><em>dd if=/dev/zero bs=1M &gt; bigfile &</em></kbd>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.3G</em>  1.7G  75% /</samp>
+<samp>$ </samp><kbd><em>rm bigfile &</em></kbd>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.6G</em>  1.4G  75% /</samp>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.9G</em>  1.1G  75% /</samp>
+<samp>$ </samp><kbd><em>killall dd</em></kbd>
+<samp>$ </samp><kbd>df -h .</kbd>
+<samp>Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda1             4.0G  <em>2.0G</em>  2.0G  75% /</samp>
+</pre>
+
+<h2>Going further</h2>
+
+<p>You could try to experiment the interaction between open files and hard links. You will discover that when a file is deleted, <code>/proc</code> considers it irremediably deleted, even if you had two hard links to the same data and use the second to recreate a hardlink identical to the one you deleted:</p>
+
+<pre>
+# In first terminal
+<samp>$ </samp><kbd>for i in $(seq 3600); do echo $i; sleep 1; done > counter.txt</kbd>
+</pre>
+
+<pre>
+# In second terminal
+<samp>$ </samp><kbd>tail -f counter.txt</kbd>
+</pre>
+
+<pre>
+# In third terminal
+<samp>$ </samp><kbd>ln counter.txt counter-hardlink.txt</kbd>
+<samp>$ </samp><kbd>readlink /proc/$(pidof tail)/fd/3</kbd>
+<samp><em>/tmp/w/counter.txt</em></samp>
+<samp>$ </samp><kbd><em>rm counter.txt</em></kbd>
+<samp>$ </samp><kbd>readlink /proc/$(pidof tail)/fd/3</kbd>
+<samp>/tmp/w/counter.txt (deleted)</samp>
+<samp>$ </samp><kbd>touch counter.txt</kbd>
+<samp>$ </samp><kbd>readlink /proc/$(pidof tail)/fd/3</kbd>
+<samp>/tmp/w/counter.txt (deleted)</samp>
+<samp>$ </samp><kbd>rm counter.txt</kbd>
+<samp>$ </samp><kbd><em>ln counter-hardlink.txt counter.txt</em></kbd>
+<samp>$ </samp><kbd>readlink /proc/$(pidof tail)/fd/3</kbd>
+<samp><em>/tmp/w/counter.txt (deleted)</em></samp>
+</pre>
+</body>
+</html>

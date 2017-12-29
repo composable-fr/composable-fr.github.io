@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <title>Lambda calculus</title>
+  </head>
+  <body>
+    <h1>Lambda calculus</h1>
+
+    <p><emph>Oh noes!</emph> You are stranded on a desert greek island. A
+      rescue party is on its way, but won't arrive until a couple of days. How
+      to deal with the boredom? Fortunately, there's a computer on the beach,
+      with a greek keyboard layout. Unfortunately, all keys are broken except
+      for <kbd>λ</kbd>, <kbd>(</kbd> and <kbd>)</kbd>. Can you still program
+      with this?</p>
+
+    <p>Welcome to the world of the lambda calculus!</p>
+
+    <p>The code in this file can be tested using
+      the <a href="http://racket-lang.org/">Racket</a> language, but any
+      version of Lisp or Scheme will do (for some versions you will need to
+      use the <code>lambda</code> instead of the <code>λ</code>
+      shorthand).</p>
+
+    <ul>
+      <li>Naming variables</li>
+      <li>Booleans</li>
+      <li>Recursion (Y combinator)</li>
+      <li>Cons</li>
+      <li>Lists</li>
+      <li>Ingtegers (lists of bits) with O(log n) addition</li>
+      <li>Fractions</li>
+      <li>Typesystem (tag each datum with its type)</li>
+      <li>Circular datatypes</li>
+      <li>Pseudo-immutable datatypes (persistant).</li>
+    </ul>
+
+    <section>
+      <h2>Our tool: lambda functions</h2>
+
+      <p>A lambda function is an anonymous function. It accepts some
+      arguments, processes them and returns some value. For example, the
+	following function has a single argument <var>x</var>, and returns
+	<var>x</var> without modification (i.e. it is the identity function):</p>
+      <pre>
+(λ (x)
+  x)</pre>
+
+      <p>It is similar to following Python declaration:</p>
+      <pre>
+def anonymous1(x):
+  return x;</pre>
+      <section>
+	<h3>Closures</h3>
+
+	<span style="red">TODO</span>
+      </section>
+      <section>
+	<h3>Character restrictions</h3>
+	
+	<p>Remember, you're stranded with no other keys than <kbd>λ</kbd>,
+	  <kbd>(</kbd> and <kbd>)</kbd>. The only allowed variable names
+	  are therefore <code>λλ</code>, <code>λλλ</code>, <code>λλ…λ</code>
+	  (<code>λ</code> on its own is already used as the built-in keyword
+	  for creating lambda functions). For convenience and readability, I
+	  will use normal variable names in this document, but all variable
+	  names could be numbered and replaced by <code>λλ</code> for the
+	  first, <code>λλλ</code> for the second etc., and the program would
+	  still produce the same output.</p>
+      </section>
+    </section>
+    <section>
+      <h2>Naming values to reuse them</h2>
+
+      <p>An anonymous function cannot be referred to by its name, since it
+	does not have one. It can be called immediately, like so:</p>
+      <pre>
+((λ (x) x) <var>argument</var>)</pre>
+
+      <p>
+	Alternatively, the <code>(λ (x) x)</code> expression can be bound to a
+	variable, so that it can be reused multiple times. We do this by
+	passing it as an argument to another function, which effectively binds
+	<code>(λ (x) x)</code> to the other function's parameter:
+
+	<pre>
+((λ (f) <var>f can be used here multiple times</var>)
+ (λ (x) x))</pre>
+      </p>
+    </section>
+    <section>
+      <h2>Representing data: booleans</h2>
+
+      <p>As you may have noticed, we cannot write any data literals, like the
+	numbers <code>1</code>, <code>2</code>, <code>3</code>, or the
+	booleans<code>#true</code> and <code>#false</code>.</p>
+
+      <p>The only tool at our disposal being lambda functions, we have
+	torepresent booleans using lambda functions. Can you think of a way to
+	encode two distinct values with a function, and be able to
+	recognizethem by calling it?</p>
+
+      <section>
+	<h3>An attempt using arbitrary functions to represent booleans</h3>
+	
+	<p>It is tempting to chose two arbitrary functions to represent
+	  <code>#true</code> and <code>#false</code>, for example the identity
+	  function <code>(λ (x) x)</code> and a function returning the identity
+	  function <code>(λ (y) (λ (x) x))</code>. We would then want to test a
+	  value for equality with these two functions, in order to determine if
+	  the value is the first (representing <code>#true</code>) or the second
+	  (representing <code>#false</code>).</p>
+
+	<p>It is notoriously problematic to test for the equality of functions:
+	  two functions with very different implementations could behave exactly
+	  in the same way, and checking that they do is an instance of the
+	  <a href="https://en.wikipedia.org/wiki/halting%20problem">halting problem</a>.
+	  Our case is much simpler, as the functions will have the same implementation,
+	  but most languages still do not offer a way to test for the
+	  "source code equality" of two functions (it would be a very brittle test
+	  anyway).</p>
+
+	<p>We could instead create the values representing <code>#true</code>
+	  and <code>#false</code> once and for all, and use the two same values
+	  throughout the program:</p>
+
+	<pre>
+(((λ (t)
+    (λ (f)
+      <var class="varblock">Use t and f here, and perform tests with
+(if (eq? v t) true-branch false-branch)</var>))
+  (λ (x) x))          ;; #true
+ (λ (y) (λ (x) x))) ;; #false</pre>
+
+	<p>Unfortunately, we do not even have an <code>eq?</code> predicate,
+	  which would test whether two values are stored at the same location
+	  in memory (i.e. they originally were one single value which was
+	  copied around). We don't have an <code>if</code> form either, so
+	  this approach is not going to work.</p>
+      </section>
+      <section>
+	<h3>The solution</h3>
+	
+	<p>Since we can't compare values, we will have to determine whether a
+	  function represents true or false by calling it. If the function
+	  returns some kind of truth or falseness when it is called, it will
+	  only move the problem one step further, as we will then need to ask
+	  the question “Is the returned value true or false?”.</p>
+
+	<p>Try to pause for a moment and think about a solution.</p>
+
+	<hr />
+
+	<p>We cannot distinguish the two functions representing <code>#true</code>
+	  and <code>#false</code>. Instead, these functions will behave like some
+	  kind of <code>if</code> form, the first one always returning the
+	  result of the true branch, and the other always returning the result
+	  of the false branch.
+	</p>
+
+	<pre>
+(((λ (t)
+    (λ (f)
+      <var class="varblock">Use t and f here, and write conditionnals as follows:
+(v the-true-branch the-false-branch)</var>))
+  (λ (true-branch) (λ (false-branch) true-branch)))
+ (λ (true-branch) (λ (false-branch) false-branch)))</pre>
+	
+	<p>
+	  Currying is the process of filling in the arguments of a function
+	  one by one, each time producing a partially applied function, until
+	  the last argument is passed. A curried version of the addition
+	  function would take a first number, and return a function which
+	  expects a second number, returning the sum of both numbers. The key
+	  point is that the second function can be saved and reused many
+	  times. For example, passing <code>1</code> to the curried addition
+	  would produce a function which increments its argument. Passing
+	  <code>2</code> to the curried multiplication would produce a
+	  function which doubles its argument.</p>
+	<p>In a way, our solution is equivalent to currying the function
+	  <code>(if condition true-branch false-branch)</code>, and defining
+	  our representations of <code>#true</code> and <code>#false</code> as
+	  <code>if</code> curried with <code>#true</code> (respectively
+	  <code>#false</code>) for its first argument.
+	</p>
+      </section>
+      <section>
+	<h3>Lazy evaluation</h3>
+	<!-- Our if is eager, make it lazy -->
+      </section>
+    </section>
+  </body>
+</html>

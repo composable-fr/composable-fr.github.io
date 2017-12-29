@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <title>Thoughts about structural editors</title>
+  </head>
+  <body>
+    <h1>Thoughts about structural editors</h1>
+
+    When opening a tag, parenthesis etc. it should not necessarily insert the
+    closing tag or parenthesis, as this can be annoing when one wants to wrap
+    some contents with a tag. Instead, it should show a stack of unclosed
+    tags, so that the user can move his cursor to the point where he wants to
+    close the recently opened tag, and close it there. The stack serves as a
+    visual indicator of what tags are unclosed, and what would be the effect
+    of closing them now, e.g.:
+
+    <pre>
+<span style="color:red;">&lt;article&gt;</span>
+<span style="color:blue;">  &lt;p&gt;</span>
+<span style="color:gray;">    &lt;ul&gt;…&lt;/ul&gt; and 30 other closed tags</span>
+<span style="color:#555599;">  &lt;/p&gt; missing</span>
+<span style="color:red;">&lt;/article&gt;</span>
+<span style="color:#555599;">  &lt;/p&gt; ← cursor here</span>
+    </pre>
+
+    In the above example, if the closing <code>&lt;/p&gt;</code> tag is
+    inserted, then the diagram becomes:
+
+    <pre>
+<span style="color:red;">&lt;article&gt;</span>
+<span style="color:blue;">  &lt;p&gt;</span>
+<span style="color:gray;">    &lt;ul&gt;…&lt;/ul&gt; and 30 other closed tags</span>
+<span style="color:#555599;">  &lt;/p&gt; missing</span>
+<span style="color:red;">&lt;/article&gt;</span>
+<span style="color:#555599;">  &lt;p&gt; missing ← cursor here</span>
+<span style="color:blue">  &lt;/p&gt;</span>
+    </pre>
+</body>
+</html>
